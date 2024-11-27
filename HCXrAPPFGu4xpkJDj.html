@@ -1,0 +1,534 @@
+<html><head><base href="https://example.com" /><style>
+:root {
+  --matrix-green: #00ff41;
+  --terminal-bg: rgba(0, 0, 0, 0.9);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Courier New', monospace;
+  color: var(--matrix-green);
+  cursor: none !important;
+}
+
+body {
+  background-color: black;
+  overflow: hidden;
+  min-height: 100vh;
+}
+
+.matrix-rain {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.terminal-window {
+  position: absolute;
+  background: var(--terminal-bg);
+  border: 2px solid var(--matrix-green);
+  min-width: 400px;
+  min-height: 300px;
+  padding: 10px;
+  border-radius: 5px;
+  box-shadow: 0 0 20px rgba(0, 255, 65, 0.3);
+  z-index: 1;
+  transform: translate(-50%, -50%);
+}
+
+.note-window {
+  position: fixed;
+  top: 20%;
+  right: -400px; /* Start off-screen */
+  width: 300px;
+  background: var(--terminal-bg);
+  border: 2px solid var(--matrix-green);
+  padding: 15px;
+  border-radius: 5px;
+  box-shadow: 0 0 20px rgba(0, 255, 65, 0.3);
+  z-index: 2;
+  opacity: 0;
+  transition: all 0.8s ease;
+}
+
+.note-window.active {
+  right: 20px;
+  opacity: 1;
+}
+
+.note-content {
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.countdown {
+  margin-top: 10px;
+  font-weight: bold;
+}
+
+.title-bar {
+  border-bottom: 1px solid var(--matrix-green);
+  padding-bottom: 5px;
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.controls {
+  display: flex;
+  gap: 5px;
+}
+
+.control-btn {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid var(--matrix-green);
+}
+
+.content {
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.cursor {
+  position: fixed;
+  width: 12px;
+  height: 12px;
+  border: 1px solid var(--matrix-green);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 9999;
+  transition: all 0.1s ease;
+  mix-blend-mode: difference;
+}
+
+.link {
+  color: var(--matrix-green);
+  text-decoration: none;
+  position: relative;
+}
+
+.link:hover {
+  text-shadow: 0 0 10px var(--matrix-green);
+}
+
+.easter-egg {
+  position: fixed;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.konami-active {
+  animation: rainbow 2s linear infinite;
+}
+
+.name-input {
+  background: transparent;
+  border: none;
+  outline: none;
+  width: 200px;
+  margin-left: 10px;
+}
+
+.name-input:focus {
+  border-bottom: 1px solid var(--matrix-green);
+}
+
+@keyframes rainbow {
+  0% { color: red; }
+  20% { color: yellow; }
+  40% { color: lime; }
+  60% { color: cyan; }
+  80% { color: magenta; }
+  100% { color: red; }
+}
+
+.hidden-message {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.5s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes typewriter {
+  from { width: 0; }
+  to { width: 100%; }
+}
+
+.fade-effect {
+  animation: fadeIn 2s ease forwards;
+}
+
+.typewriter-effect {
+  display: inline-block;
+  overflow: hidden;
+  white-space: nowrap;
+  animation: typewriter 2s steps(40, end) forwards;
+}
+
+</style></head><body>
+<div class="cursor"></div>
+<canvas class="matrix-rain"></canvas>
+
+<div class="terminal-window" style="top: 50%; left: 50%;">
+  <div class="title-bar">
+    <span>Matrix Terminal</span>
+    <div class="controls">
+      <div class="control-btn"></div>
+      <div class="control-btn"></div>
+      <div class="control-btn"></div>
+    </div>
+  </div>
+  <div class="content">
+    <div id="intro-sequence"></div>
+    <div id="post-intro"></div>
+    <div id="main-content" style="display: none;">
+      <br>
+      <p>Available endpoints:</p>
+      <p>> <a href="https://ubuntu-profile.qrexxed.me" class="link" target="_blank">Ubuntu Profile Interface</a></p>
+      <p>> <a href="https://discord-bio.qrexxed.me" class="link" target="_blank">Discord Bio</a></p>
+      <br>
+      <p class="typing"></p>
+    </div>
+  </div>
+</div>
+
+<div class="note-window">
+  <div class="title-bar">
+    <span>Note</span>
+    <div class="controls">
+      <div class="control-btn"></div>
+      <div class="control-btn"></div>
+      <div class="control-btn"></div>
+    </div>
+  </div>
+  <div class="note-content">
+    <div id="note-text"></div>
+    <div id="countdown" class="countdown"></div>
+  </div>
+</div>
+
+<div class="hidden-message">There is no spoon</div>
+<div class="hidden-message">Follow the white rabbit</div>
+<div class="hidden-message">Wake up, Neo...</div>
+
+<script>
+const canvas = document.querySelector('.matrix-rain');
+const ctx = canvas.getContext('2d');
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%^&*()';
+const fontSize = 14;
+const columns = canvas.width/fontSize;
+const drops = [];
+
+for(let x = 0; x < columns; x++) {
+    drops[x] = 1;
+}
+
+function draw() {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    ctx.fillStyle = '#00ff41';
+    ctx.font = fontSize + 'px monospace';
+    
+    for(let i = 0; i < drops.length; i++) {
+        const text = chars[Math.floor(Math.random() * chars.length)];
+        ctx.fillText(text, i*fontSize, drops[i]*fontSize);
+        
+        if(drops[i]*fontSize > canvas.height && Math.random() > 0.975)
+            drops[i] = 0;
+        
+        drops[i]++;
+    }
+}
+
+setInterval(draw, 33);
+
+async function typeText(text, element, speed = 50) {
+    for (let char of text) {
+        element.textContent += char;
+        await new Promise(resolve => setTimeout(resolve, speed));
+    }
+    return new Promise(resolve => setTimeout(resolve, 500));
+}
+
+async function deleteText(element, speed = 30) {
+    while (element.textContent.length > 0) {
+        element.textContent = element.textContent.slice(0, -1);
+        await new Promise(resolve => setTimeout(resolve, speed));
+    }
+    return new Promise(resolve => setTimeout(resolve, 200));
+}
+
+async function startIntroSequence() {
+    const introDiv = document.getElementById('intro-sequence');
+    const mainContent = document.getElementById('main-content');
+    const postIntro = document.getElementById('post-intro');
+    
+    await typeText('Welcome to the Matrix, user...', introDiv);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    introDiv.innerHTML += '<br>Name? <input type="text" class="name-input" id="name-input">';
+    const nameInput = document.getElementById('name-input');
+    nameInput.focus();
+    
+    nameInput.addEventListener('keypress', async (e) => {
+        if (e.key === 'Enter') {
+            const name = nameInput.value.trim();
+            introDiv.innerHTML = '';
+            
+            if (name === '') {
+                // Type and then delete "You have learnt self-privacy..."
+                await typeText('You have learnt self-privacy...', introDiv);
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                await deleteText(introDiv);
+            } else {
+                await typeText(`Welcome, ${name}`, introDiv);
+            }
+            
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // Type "Accessing mainframe..."
+            await typeText('Accessing mainframe...', postIntro, 20);
+            await new Promise(resolve => setTimeout(resolve, 800));
+            
+            // Delete "Accessing mainframe..."
+            await deleteText(postIntro);
+            
+            // Type "Connection established to: qrexxed.me"
+            await typeText('Connection established to: qrexxed.me', postIntro, 20);
+            await new Promise(resolve => setTimeout(resolve, 800));
+            
+            // Delete "Connection established..."
+            await deleteText(postIntro);
+            
+            // Show the main content
+            mainContent.style.display = 'block';
+
+            // Add note window animation and content
+            const noteWindow = document.querySelector('.note-window');
+            const noteText = document.getElementById('note-text');
+            const countdown = document.getElementById('countdown');
+
+            // Show note window after a small delay
+            setTimeout(async () => {
+              noteWindow.classList.add('active');
+              
+              // Type the note message
+              await typeText('This is not one of my projects but an endpoint to all of my subdomains containing my projects.', noteText, 30);
+              
+              // Wait a moment before starting countdown
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              
+              // Add countdown message
+              await typeText('Self-destructing in 5..', countdown, 50);
+              
+              // Start countdown
+              let count = 5;
+              const timer = setInterval(() => {
+                count--;
+                countdown.textContent = `Self-destructing in ${count}..`;
+                
+                if (count <= 0) {
+                  clearInterval(timer);
+                  noteWindow.style.transition = 'all 0.5s ease';
+                  noteWindow.style.opacity = '0';
+                  noteWindow.style.transform = 'translateY(-100px)';
+                  setTimeout(() => {
+                    noteWindow.remove();
+                  }, 500);
+                }
+              }, 1000);
+            }, 1000);
+        }
+    });
+}
+
+startIntroSequence();
+
+const cursor = document.querySelector('.cursor');
+
+document.addEventListener('mousemove', (e) => {
+    cursor.style.left = e.clientX + 'px';
+    cursor.style.top = e.clientY + 'px';
+});
+
+const typing = document.querySelector('.typing');
+const texts = [
+    'Searching for truth...',
+    'Reality is not what it seems...',
+    'Enter the Matrix...'
+];
+
+let textIndex = 0;
+let charIndex = 0;
+
+function type() {
+    if (charIndex < texts[textIndex].length) {
+        typing.textContent += texts[textIndex].charAt(charIndex);
+        charIndex++;
+        setTimeout(type, 100);
+    } else {
+        setTimeout(erase, 2000);
+    }
+}
+
+function erase() {
+    if (charIndex > 0) {
+        typing.textContent = texts[textIndex].substring(0, charIndex-1);
+        charIndex--;
+        setTimeout(erase, 50);
+    } else {
+        textIndex = (textIndex + 1) % texts.length;
+        setTimeout(type, 500);
+    }
+}
+
+setTimeout(type, 1000);
+
+const terminal = document.querySelector('.terminal-window');
+let isDragging = false;
+let currentX;
+let currentY;
+let initialX;
+let initialY;
+let xOffset = 0;
+let yOffset = 0;
+
+terminal.addEventListener('mousedown', dragStart);
+document.addEventListener('mousemove', drag);
+document.addEventListener('mouseup', dragEnd);
+
+function dragStart(e) {
+    const style = window.getComputedStyle(terminal);
+    const matrix = new WebKitCSSMatrix(style.transform);
+    
+    xOffset = matrix.m41;
+    yOffset = matrix.m42;
+    
+    initialX = e.clientX - xOffset;
+    initialY = e.clientY - yOffset;
+
+    if (e.target === terminal || e.target.parentNode === terminal) {
+        isDragging = true;
+    }
+}
+
+function drag(e) {
+    if (isDragging) {
+        e.preventDefault();
+        currentX = e.clientX - initialX;
+        currentY = e.clientY - initialY;
+
+        xOffset = currentX;
+        yOffset = currentY;
+
+        setTranslate(currentX, currentY, terminal);
+    }
+}
+
+function setTranslate(xPos, yPos, el) {
+    el.style.transform = `translate(${xPos}px, ${yPos}px)`;
+}
+
+function dragEnd(e) {
+    initialX = currentX;
+    initialY = currentY;
+    isDragging = false;
+}
+
+let keys = [];
+const konamiCode = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
+
+document.addEventListener('keydown', (e) => {
+    keys.push(e.key);
+    keys = keys.slice(-10);
+    
+    if (JSON.stringify(keys) === JSON.stringify(konamiCode)) {
+        document.body.classList.add('konami-active');
+        setTimeout(() => {
+            document.body.classList.remove('konami-active');
+        }, 5000);
+    }
+});
+
+const messages = document.querySelectorAll('.hidden-message');
+setInterval(() => {
+    const randomMessage = messages[Math.floor(Math.random() * messages.length)];
+    randomMessage.style.left = Math.random() * (window.innerWidth - 200) + 'px';
+    randomMessage.style.top = Math.random() * (window.innerHeight - 50) + 'px';
+    
+    randomMessage.classList.remove('fade-effect', 'typewriter-effect');
+    
+    const effectType = Math.random() < 0.5 ? 'fade' : 'typewriter';
+    
+    if (effectType === 'fade') {
+        randomMessage.classList.add('fade-effect');
+    } else {
+        randomMessage.classList.add('typewriter-effect');
+    }
+    
+    setTimeout(() => {
+        randomMessage.classList.remove('fade-effect', 'typewriter-effect');
+        randomMessage.style.opacity = '0';
+    }, 4000);
+}, 10000);
+
+let secretCode = '';
+const secretCombos = {
+    'matrix': () => {
+        document.documentElement.style.setProperty('--matrix-green', '#ff0000');
+        setTimeout(() => {
+            document.documentElement.style.setProperty('--matrix-green', '#00ff41');
+        }, 3000);
+    },
+    'rabbit': () => {
+        const rabbit = document.createElement('div');
+        rabbit.innerHTML = '🐰';
+        rabbit.style.position = 'fixed';
+        rabbit.style.fontSize = '50px';
+        rabbit.style.left = '0';
+        rabbit.style.top = '50%';
+        document.body.appendChild(rabbit);
+        
+        let pos = 0;
+        const hop = setInterval(() => {
+            pos += 10;
+            rabbit.style.left = pos + 'px';
+            if (pos > window.innerWidth) {
+                clearInterval(hop);
+                rabbit.remove();
+            }
+        }, 50);
+    }
+};
+
+document.addEventListener('keypress', (e) => {
+    secretCode += e.key;
+    secretCode = secretCode.slice(-6);
+    
+    Object.keys(secretCombos).forEach(code => {
+        if (secretCode.includes(code)) {
+            secretCombos[code]();
+            secretCode = '';
+        }
+    });
+});
+</script>
+</body></html>
